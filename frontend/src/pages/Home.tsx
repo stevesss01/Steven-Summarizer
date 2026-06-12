@@ -1,9 +1,9 @@
-
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { api } from "../services/api";
 import ReactMarkdown from "react-markdown";
 import UploadZone from "../components/UploadZone";
 import AnalysisCard from "../components/AnalysisCard";
+
 
 export default function Home() {
 
@@ -18,6 +18,9 @@ export default function Home() {
 
   const [mode, setMode] =
     useState("general");
+
+    const resultRef =
+  useRef<HTMLDivElement>(null);
 
   const resetAnalysis = () => {
 
@@ -71,8 +74,18 @@ export default function Home() {
           );
 
         setSummary(
-          res.data.summary
-        );
+  res.data.summary
+);
+
+setTimeout(() => {
+
+  resultRef.current
+    ?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+
+}, 200);
 
       } catch (err) {
 
@@ -338,8 +351,9 @@ export default function Home() {
             </div>
 
             <div
-              style={{
-                marginTop: "30px",
+  ref={resultRef}
+  style={{
+    marginTop: "30px",
                 background:
                   "#0f172a",
                 padding: "30px",
