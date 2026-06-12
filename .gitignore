@@ -1,0 +1,45 @@
+```gitignore
+# =========================
+# Python Backend
+# =========================
+
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/**/*.pyc
+backend/*.db
+
+# =========================
+# React Frontend
+# =========================
+
+frontend/node_modules/
+frontend/dist/
+
+# =========================
+# Environment Files
+# =========================
+
+.env
+.env.local
+.env.production
+
+# =========================
+# VS Code
+# =========================
+
+.vscode/
+
+# =========================
+# OS Files
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+
+*.log
+```
