@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ModeOption } from "../config/modes";
+import type { SummaryMeta } from "../services/api";
 
 interface ResultPanelProps {
   summary: string;
+  meta: SummaryMeta | null;
   mode: ModeOption;
   fileName: string;
   onReset: () => void;
@@ -11,6 +13,7 @@ interface ResultPanelProps {
 
 export default function ResultPanel({
   summary,
+  meta,
   mode,
   fileName,
   onReset,
@@ -28,7 +31,7 @@ export default function ResultPanel({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* Clipboard unavailable (e.g. insecure context) — ignore silently. */
+      // Clipboard API is unavailable in insecure contexts; nothing to do.
     }
   };
 
@@ -43,22 +46,45 @@ export default function ResultPanel({
   };
 
   return (
-    <section ref={panelRef} className="panel result fade-in-up" aria-label="Analysis result">
+    <section
+      ref={panelRef}
+      className="panel result fade-in-up"
+      aria-label="Analysis result"
+    >
       <header className="result__header">
         <div className="result__heading">
           <span className="badge badge--success">
-            <span aria-hidden="true">✓</span> Analysis complete
+            <span className="badge__dot" aria-hidden="true" /> Analysis complete
           </span>
           <p className="result__meta">
-            {mode.icon} {mode.title} · <span title={fileName}>{fileName}</span>
+            {mode.title} · <span title={fileName}>{fileName}</span>
           </p>
+          {meta && (
+            <p className="result__stats">
+              <span>
+                {meta.pages} {meta.pages === 1 ? "page" : "pages"}
+              </span>
+              {meta.sections > 1 && (
+                <span>Analysed in {meta.sections} parallel sections</span>
+              )}
+              <span>{meta.seconds}s</span>
+            </p>
+          )}
         </div>
 
         <div className="result__actions">
-          <button type="button" className="btn btn--secondary btn--sm" onClick={copySummary}>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={copySummary}
+          >
             {copied ? "Copied" : "Copy"}
           </button>
-          <button type="button" className="btn btn--secondary btn--sm" onClick={downloadSummary}>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={downloadSummary}
+          >
             Download
           </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={onReset}>
@@ -66,6 +92,13 @@ export default function ResultPanel({
           </button>
         </div>
       </header>
+
+      {meta?.truncated && (
+        <p className="result__note">
+          This document is very long, so only the first {meta.pages_analysed} pages (or
+          the first part of the text) were analysed.
+        </p>
+      )}
 
       <article className="markdown">
         <ReactMarkdown>{summary}</ReactMarkdown>

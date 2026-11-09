@@ -6,7 +6,9 @@ interface ErrorBannerProps {
 export default function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
   return (
     <div className="alert fade-in" role="alert">
-      <span className="alert__icon" aria-hidden="true">!</span>
+      <span className="alert__icon" aria-hidden="true">
+        !
+      </span>
       <p className="alert__text">{message}</p>
       <button
         type="button"

@@ -1,5 +1,6 @@
 import type { AnalysisMode } from "../config/modes";
 import { MODES } from "../config/modes";
+import ModeIcon from "./ModeIcon";
 
 interface ModeSelectorProps {
   value: AnalysisMode;
@@ -27,7 +28,7 @@ export default function ModeSelector({
             onClick={() => onChange(mode.id)}
           >
             <span className="mode-card__icon" aria-hidden="true">
-              {mode.icon}
+              <ModeIcon mode={mode.id} />
             </span>
             <span className="mode-card__text">
               <span className="mode-card__title">{mode.title}</span>

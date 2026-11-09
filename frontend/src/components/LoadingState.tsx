@@ -30,11 +30,7 @@ export default function LoadingState({ fileName, onCancel }: LoadingStateProps) 
   );
 
   return (
-    <section
-      className="panel loading fade-in"
-      aria-live="polite"
-      aria-busy="true"
-    >
+    <section className="panel loading fade-in" aria-live="polite" aria-busy="true">
       <div className="loading__visual" aria-hidden="true">
         <span className="breath-ring breath-ring--outer" />
         <span className="breath-ring breath-ring--mid" />
@@ -49,7 +45,9 @@ export default function LoadingState({ fileName, onCancel }: LoadingStateProps) 
 
       <div className="loading__body">
         <p className="eyebrow">Analysing</p>
-        <h2 className="loading__title" title={fileName}>{fileName}</h2>
+        <h2 className="loading__title" title={fileName}>
+          {fileName}
+        </h2>
 
         <ol className="steps">
           {STEPS.map((step, index) => {
@@ -65,8 +63,8 @@ export default function LoadingState({ fileName, onCancel }: LoadingStateProps) 
         </ol>
 
         <p className={`loading__hint${elapsed > SLOW_HINT_AFTER ? " is-visible" : ""}`}>
-          Taking a little longer — the free server may be waking up. This can
-          take up to a minute on the first request.
+          Still working. Long documents are split into sections and analysed in parallel,
+          and the free server may also need a moment to wake up.
         </p>
 
         <button type="button" className="btn btn--ghost btn--sm" onClick={onCancel}>

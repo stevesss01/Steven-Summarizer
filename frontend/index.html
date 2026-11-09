@@ -20,35 +20,73 @@
     <!-- Boot splash: shown while the JS bundle loads, removed in main.tsx -->
     <style>
       #boot-splash {
-        position: fixed; inset: 0; z-index: 100;
-        display: grid; place-items: center;
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
         background: #0b1120;
         transition: opacity 0.6s ease;
       }
-      #boot-splash.is-hidden { opacity: 0; pointer-events: none; }
+      #boot-splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
       .boot-mark {
-        width: 56px; height: 56px; border-radius: 16px;
-        display: grid; place-items: center;
-        font: 700 26px/1 Inter, system-ui, sans-serif; color: #fff;
-        background: linear-gradient(135deg, #3b82f6, #22d3ee);
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        font:
+          700 26px/1 Inter,
+          system-ui,
+          sans-serif;
+        color: #fff;
+        background: #3b82f6;
         animation: boot-breathe 2.4s ease-in-out infinite;
       }
       .boot-bar {
-        width: 120px; height: 3px; margin: 22px auto 0; border-radius: 99px;
-        background: rgba(148, 163, 184, 0.15); overflow: hidden;
+        width: 120px;
+        height: 3px;
+        margin: 22px auto 0;
+        border-radius: 99px;
+        background: rgba(148, 163, 184, 0.15);
+        overflow: hidden;
       }
       .boot-bar::after {
-        content: ""; display: block; width: 40%; height: 100%; border-radius: inherit;
+        content: "";
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: inherit;
         background: linear-gradient(90deg, transparent, #38bdf8, transparent);
         animation: boot-slide 1.6s ease-in-out infinite;
       }
       @keyframes boot-breathe {
-        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.35); }
-        50% { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(56, 189, 248, 0); }
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.35);
+        }
+        50% {
+          transform: scale(1.06);
+          box-shadow: 0 0 0 14px rgba(56, 189, 248, 0);
+        }
       }
-      @keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+      @keyframes boot-slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(260%);
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .boot-mark, .boot-bar::after { animation: none; }
+        .boot-mark,
+        .boot-bar::after {
+          animation: none;
+        }
       }
     </style>
   </head>

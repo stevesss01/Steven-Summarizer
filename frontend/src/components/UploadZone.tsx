@@ -95,7 +95,9 @@ export default function UploadZone({
 
       {file ? (
         <div className="file-chip" onClick={(e) => e.stopPropagation()}>
-          <span className="file-chip__icon" aria-hidden="true">PDF</span>
+          <span className="file-chip__icon" aria-hidden="true">
+            PDF
+          </span>
           <span className="file-chip__meta">
             <span className="file-chip__name" title={file.name}>
               {file.name}
@@ -116,9 +118,16 @@ export default function UploadZone({
       ) : (
         <div className="dropzone__prompt">
           <span className="dropzone__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
-              stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
-              strokeLinejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              width="28"
+              height="28"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M12 16V4" />
               <path d="m7 9 5-5 5 5" />
               <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
