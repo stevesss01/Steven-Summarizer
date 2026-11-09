@@ -1,99 +1,135 @@
-import React from "react";
+import { useRef, useState } from "react";
+import type { DragEvent, KeyboardEvent } from "react";
+import { MAX_UPLOAD_MB } from "../config/modes";
 
 interface UploadZoneProps {
   file: File | null;
-  onFileSelect: (
-    file: File | null
-  ) => void;
+  disabled?: boolean;
+  onFileSelect: (file: File | null) => void;
+  onError: (message: string) => void;
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function UploadZone({
   file,
-  onFileSelect
+  disabled = false,
+  onFileSelect,
+  onError,
 }: UploadZoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleDrop = (
-    e: React.DragEvent
-  ) => {
+  const acceptFile = (candidate: File | undefined) => {
+    if (!candidate) return;
+    const isPdf =
+      candidate.type === "application/pdf" ||
+      candidate.name.toLowerCase().endsWith(".pdf");
 
+    if (!isPdf) {
+      onError("Please choose a PDF file.");
+      return;
+    }
+    if (candidate.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      onError(`File is larger than ${MAX_UPLOAD_MB} MB.`);
+      return;
+    }
+    onFileSelect(candidate);
+  };
+
+  const openPicker = () => {
+    if (!disabled) inputRef.current?.click();
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    setIsDragging(false);
+    if (!disabled) acceptFile(e.dataTransfer.files[0]);
+  };
 
-    const droppedFile =
-      e.dataTransfer.files[0];
-
-    if (
-      droppedFile &&
-      droppedFile.type ===
-        "application/pdf"
-    ) {
-      onFileSelect(
-        droppedFile
-      );
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openPicker();
     }
   };
 
+  const classes = [
+    "dropzone",
+    isDragging && "dropzone--dragging",
+    file && "dropzone--filled",
+    disabled && "dropzone--disabled",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div
-      onDragOver={(e) =>
-        e.preventDefault()
-      }
-      onDrop={handleDrop}
-      style={{
-        border:
-          "2px dashed #475569",
-        borderRadius:
-          "16px",
-        padding: "50px",
-        textAlign:
-          "center",
-        background:
-          "#0f172a",
-        cursor: "pointer"
+      className={classes}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label="Upload a PDF document"
+      aria-disabled={disabled}
+      onClick={openPicker}
+      onKeyDown={handleKeyDown}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setIsDragging(true);
       }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
     >
       <input
+        ref={inputRef}
         type="file"
-        accept=".pdf"
-        style={{
-          display: "none"
+        accept="application/pdf,.pdf"
+        hidden
+        onChange={(e) => {
+          acceptFile(e.target.files?.[0]);
+          e.target.value = "";
         }}
-        id="pdf-upload"
-        onChange={(e) =>
-          onFileSelect(
-            e.target.files?.[0]
-              || null
-          )
-        }
       />
 
-      <label
-        htmlFor="pdf-upload"
-        style={{
-          cursor: "pointer"
-        }}
-      >
-        <h2>
-          📄 Upload PDF
-        </h2>
-
-        <p>
-          Drag & Drop or
-          Click to Browse
-        </p>
-
-        {file && (
-          <p
-            style={{
-              marginTop:
-                "15px",
-              color:
-                "#38bdf8"
-            }}
-          >
-            {file.name}
+      {file ? (
+        <div className="file-chip" onClick={(e) => e.stopPropagation()}>
+          <span className="file-chip__icon" aria-hidden="true">PDF</span>
+          <span className="file-chip__meta">
+            <span className="file-chip__name" title={file.name}>
+              {file.name}
+            </span>
+            <span className="file-chip__size">{formatSize(file.size)}</span>
+          </span>
+          {!disabled && (
+            <button
+              type="button"
+              className="file-chip__remove"
+              aria-label="Remove file"
+              onClick={() => onFileSelect(null)}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="dropzone__prompt">
+          <span className="dropzone__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
+              strokeLinejoin="round">
+              <path d="M12 16V4" />
+              <path d="m7 9 5-5 5 5" />
+              <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+          </span>
+          <p className="dropzone__title">
+            Drop your PDF here or <span className="link-text">browse</span>
           </p>
-        )}
-      </label>
+          <p className="dropzone__hint">Text-based PDFs up to {MAX_UPLOAD_MB} MB</p>
+        </div>
+      )}
     </div>
   );
 }

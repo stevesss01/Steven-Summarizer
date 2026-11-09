@@ -1,6 +1,6 @@
-fastapi
-uvicorn
-python-dotenv
-python-multipart
-groq
-PyMuPDF
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-dotenv>=1.0
+python-multipart>=0.0.9
+groq>=0.9
+PyMuPDF>=1.24
