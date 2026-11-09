@@ -3,7 +3,7 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="container site-footer__inner">
         <p>
-          Built by <strong>Shyam Saha</strong> · React, FastAPI &amp; Llama 3.3
+          Built by <strong>Shyam Saha</strong> · React, FastAPI &amp; Groq
         </p>
         <a
           href="https://github.com/stevesss01/Steven-Summarizer"

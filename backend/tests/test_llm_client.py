@@ -75,3 +75,23 @@ def test_gives_clean_error_when_everything_fails():
 def test_missing_key_is_reported():
     with pytest.raises(mod.LLMServiceError):
         mod.LLMClient([])
+
+
+def test_reasoning_models_get_reasoning_params_and_headroom():
+    params = mod._request_params("openai/gpt-oss-120b", [], 450)
+    assert params["reasoning_effort"] == config.settings.reasoning_effort
+    assert params["include_reasoning"] is False
+    assert params["max_completion_tokens"] == 450 + mod.REASONING_TOKEN_HEADROOM
+
+
+def test_standard_models_get_plain_params():
+    params = mod._request_params("some-standard-model", [], 450)
+    assert "reasoning_effort" not in params
+    assert params["max_completion_tokens"] == 450
+
+
+def test_retired_model_falls_through_to_fallback():
+    client, used = make_client([StatusError(404, "model_not_found"), "ok"])
+    result = asyncio.run(client.complete([{"role": "user", "content": "hi"}]))
+    assert result.text == "ok"
+    assert used[0][1] != used[1][1]

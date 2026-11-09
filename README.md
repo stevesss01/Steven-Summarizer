@@ -46,7 +46,7 @@ flowchart LR
     P -->|short| ONE[Single request]
     P -->|long| MAP[Split into sections<br/>extract notes concurrently]
     MAP --> REDUCE[Merge notes into report]
-    ONE --> LLM[(Groq<br/>Llama 3.3 70B,<br/>8B fallback)]
+    ONE --> LLM[(Groq<br/>GPT-OSS 120B,<br/>20B fallback)]
     MAP --> LLM
     REDUCE --> LLM
 ```
@@ -78,7 +78,7 @@ One slow request froze the server for every user, and any provider error became 
 - **Async I/O** throughout, with PDF parsing moved to a worker thread.
 - **Key rotation:** `GROQ_API_KEYS` accepts several keys, used round-robin to spread rate limits.
 - **Retries** on timeouts, 429 and 5xx responses, with exponential backoff, jitter and `Retry-After` support.
-- **Model fallback:** if the primary model keeps failing, the request moves to `GROQ_FALLBACK_MODELS`.
+- **Model fallback:** if the primary model keeps failing or has been retired, the request moves to `GROQ_FALLBACK_MODELS`. Model IDs are configuration, not code, so a provider deprecation only needs an environment variable change.
 - **Rate limiting** per client IP (`RATE_LIMIT_PER_MINUTE`) to protect the shared API quota.
 - **Structured request logs** with an `X-Request-ID` on every response, and a global handler that returns clean JSON errors.
 
@@ -132,8 +132,9 @@ Backend variables (see [`backend/.env.example`](backend/.env.example)):
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `GROQ_API_KEY` / `GROQ_API_KEYS` | (required) | One key, or a comma-separated list for rotation |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Primary model |
-| `GROQ_FALLBACK_MODELS` | `llama-3.1-8b-instant` | Models tried in order when the primary fails |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Primary model |
+| `GROQ_FALLBACK_MODELS` | `openai/gpt-oss-20b` | Models tried in order when the primary fails |
+| `LLM_REASONING_EFFORT` | `low` | `low`, `medium` or `high` for reasoning models |
 | `LLM_TIMEOUT_SECONDS` | `45` | Timeout for each request |
 | `LLM_MAX_RETRIES` | `3` | Attempts per model |
 | `SINGLE_PASS_CHARS` | `12000` | Above this size, use sectioned analysis |
@@ -165,7 +166,7 @@ Frontend: `VITE_API_URL`, the backend base URL.
     "pages_analysed": 2,
     "sections": 1,
     "truncated": false,
-    "models": ["llama-3.3-70b-versatile"],
+    "models": ["openai/gpt-oss-120b"],
     "seconds": 4.2
   }
 }

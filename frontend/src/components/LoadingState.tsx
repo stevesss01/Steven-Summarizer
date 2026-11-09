@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 const STEPS = [
   { label: "Uploading document", after: 0 },
   { label: "Reading pages", after: 1800 },
-  { label: "Analysing with Llama 3.3", after: 4500 },
+  { label: "Analysing content", after: 4500 },
   { label: "Structuring your report", after: 9000 },
 ];
 

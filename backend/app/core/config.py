@@ -28,14 +28,16 @@ class Settings:
 
     # --- LLM -------------------------------------------------------------
     groq_api_keys: list[str] = field(default_factory=_api_keys)
-    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     # Tried in order when the primary model is rate-limited or failing.
     fallback_models: list[str] = field(
-        default_factory=lambda: _split_csv(
-            os.getenv("GROQ_FALLBACK_MODELS", "llama-3.1-8b-instant")
-        )
+        default_factory=lambda: _split_csv(os.getenv("GROQ_FALLBACK_MODELS", "openai/gpt-oss-20b"))
     )
-    temperature: float = float(os.getenv("GROQ_TEMPERATURE", "0.2"))
+    temperature: float = float(os.getenv("GROQ_TEMPERATURE", "0.3"))
+    # Reasoning models (gpt-oss) spend part of the token budget thinking.
+    # "low" keeps summaries fast; raise to "medium" for deeper analysis.
+    reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "low")
+    reasoning_model_prefixes: tuple[str, ...] = ("openai/gpt-oss",)
     request_timeout_s: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
     max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
@@ -70,6 +72,9 @@ class Settings:
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    def is_reasoning_model(self, model: str) -> bool:
+        return model.startswith(self.reasoning_model_prefixes)
 
     @property
     def models(self) -> list[str]:

@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
 MAX_RETRY_AFTER_S = 20.0
+# Extra completion budget for reasoning models, whose hidden reasoning tokens
+# count against the limit. Without it, short calls can return empty content.
+REASONING_TOKEN_HEADROOM = 1500
 
 
 class LLMServiceError(RuntimeError):
@@ -60,6 +63,22 @@ def _is_transient(exc: Exception) -> bool:
     return status is None or status in RETRYABLE_STATUS
 
 
+def _request_params(model: str, messages: list[Message], max_tokens: int | None) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": settings.temperature,
+    }
+    reasoning = settings.is_reasoning_model(model)
+    if reasoning:
+        params["reasoning_effort"] = settings.reasoning_effort
+        params["include_reasoning"] = False
+    if max_tokens:
+        budget = max_tokens + (REASONING_TOKEN_HEADROOM if reasoning else 0)
+        params["max_completion_tokens"] = budget
+    return params
+
+
 class LLMClient:
     def __init__(self, api_keys: list[str]) -> None:
         if not api_keys:
@@ -80,13 +99,7 @@ class LLMClient:
 
         for model in settings.models:
             for attempt in range(1, settings.max_retries + 1):
-                params: dict[str, Any] = {
-                    "model": model,
-                    "messages": messages,
-                    "temperature": settings.temperature,
-                }
-                if max_tokens:
-                    params["max_tokens"] = max_tokens
+                params = _request_params(model, messages, max_tokens)
 
                 try:
                     response = await self._next_client().chat.completions.create(**params)
