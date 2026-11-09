@@ -44,3 +44,8 @@ Thumbs.db
 
 *.log
 ```
+
+# Tooling
+.venv/
+.pytest_cache/
+.ruff_cache/

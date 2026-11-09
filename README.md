@@ -1,214 +1,239 @@
-<div align="center">
-
 # Steven-Summarizer
 
-**AI document intelligence. Upload a PDF and get a structured, decision-ready analysis in seconds.**
+[![CI](https://github.com/stevesss01/Steven-Summarizer/actions/workflows/ci.yml/badge.svg)](https://github.com/stevesss01/Steven-Summarizer/actions/workflows/ci.yml)
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-steven--summarizer.vercel.app-3b82f6?style=for-the-badge)](https://steven-summarizer.vercel.app)
+Upload a PDF and get a structured analysis: an executive brief, a resume review or a
+research paper breakdown. Long documents are split into sections, analysed concurrently
+and merged, so file length doesn't make requests fail.
 
-![React](https://img.shields.io/badge/React_19-20232A?logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![Python](https://img.shields.io/badge/Python_3.11-3776AB?logo=python&logoColor=white)
-![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036)
+**Live:** https://steven-summarizer.vercel.app · **API docs:** https://steven-summarizer.onrender.com/docs
 
-<img src="docs/screenshots/home.png" alt="Steven-Summarizer home screen" width="820" />
+![Upload and mode selection](docs/screenshots/home.png)
 
-</div>
-
----
-
-## Overview
-
-Reading long PDFs to find the few points that matter is slow and repetitive. Steven-Summarizer automates it:
-
-1. **Upload** a PDF (drag-and-drop or browse)
-2. **Choose** an analysis mode
-3. **Receive** a structured markdown report you can copy or download
-
-Each mode uses a purpose-built prompt, so the output fits the document: a resume gets an ATS score and a hiring verdict, and a research paper gets its contributions, limitations and likely viva questions.
-
-## Features
-
-| Mode | Best for | What you get |
+| Loading state | Result | Mobile |
 | --- | --- | --- |
-| 📄 **General Summary** | Reports, notes, articles | Executive brief: overview, key takeaways, critical facts, recommended actions, keywords |
-| 🧑‍💼 **Resume Review** | CVs and resumes | ATS score, hiring recommendation, strengths, gaps, missing keywords, technical ratings |
-| 🔬 **Research Paper** | Academic and technical papers | Problem, proposed solution, contributions, findings, limitations, viva questions |
+| ![Loading](docs/screenshots/loading.gif) | ![Result](docs/screenshots/result.png) | ![Mobile](docs/screenshots/mobile.png) |
 
-**User experience**
+## Contents
 
-- Calm, animated loading states: a boot splash, breathing progress visual, step tracker and shimmering report skeleton
-- The server is woken in the background as soon as the page opens, which hides most of the free-tier cold start
-- Fully responsive layout for mobile, tablet and desktop, with keyboard-accessible controls
-- Clear error messages for wrong file types, oversized files, scanned PDFs and network failures
-- No sign-up and no storage: files are processed in memory
+- [Analysis modes](#analysis-modes)
+- [Architecture](#architecture)
+- [Handling long documents](#handling-long-documents)
+- [Reliability](#reliability)
+- [Prompt design](#prompt-design)
+- [Running locally](#running-locally)
+- [Configuration](#configuration)
+- [API](#api)
+- [Testing and CI](#testing-and-ci)
+- [Deployment](#deployment)
+- [Project structure](#project-structure)
 
-<div align="center">
-<img src="docs/screenshots/loading.gif" alt="Animated loading state" width="640" />
-<br/><br/>
-<img src="docs/screenshots/result.png" alt="Analysis result" width="640" />
-<br/><br/>
-<img src="docs/screenshots/mobile.png" alt="Mobile layout" width="640" />
-</div>
+## Analysis modes
+
+| Mode | Input | Output |
+| --- | --- | --- |
+| General | Reports, contracts, notes, articles | Document type, overview, key takeaways, critical facts, actions, keywords |
+| Resume | CVs and resumes | Rubric-based ATS score, recommendation, strengths, gaps, missing keywords, rated assessment table, top improvements |
+| Research | Papers and technical documents | Problem, approach, contributions, results with numbers, limitations, applications, viva questions |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[User uploads PDF] --> B[React + TypeScript<br/>frontend · Vercel]
-    B -- multipart/form-data --> C[FastAPI backend<br/>Render]
-    C --> D[PyMuPDF<br/>text extraction]
-    D --> E[Mode-specific<br/>prompt builder]
-    E --> F[Groq API<br/>Llama 3.3 70B]
-    F -- markdown report --> B
+    UI[React + TypeScript<br/>Vercel] -->|multipart upload| API[FastAPI<br/>Render]
+    API --> PDF[PyMuPDF<br/>text extraction]
+    PDF --> P{Length?}
+    P -->|short| ONE[Single request]
+    P -->|long| MAP[Split into sections<br/>extract notes concurrently]
+    MAP --> REDUCE[Merge notes into report]
+    ONE --> LLM[(Groq<br/>Llama 3.3 70B,<br/>8B fallback)]
+    MAP --> LLM
+    REDUCE --> LLM
 ```
 
-**Request flow**
+## Handling long documents
 
-1. The frontend validates the file (PDF only, ≤ 10 MB) and posts it with the selected mode.
-2. The backend validates it again, extracts text with PyMuPDF and rejects empty or scanned documents.
-3. The prompt for that mode is built and sent to Llama 3.3 70B on Groq.
-4. The markdown response is rendered in the browser, with copy and download options.
+The original version sent the first 12,000 characters in one request, so long PDFs either
+lost most of their content or failed. The pipeline in
+[`summarizer.py`](backend/app/services/summarizer.py) now works as follows:
 
-## Tech Stack
+1. **Short documents** (≤ `SINGLE_PASS_CHARS`) are analysed in one request.
+2. **Long documents** are split on paragraph and sentence boundaries into overlapping
+   sections ([`chunking.py`](backend/app/services/chunking.py)).
+3. Each section is reduced to compact, mode-specific notes. Sections run **concurrently**,
+   behind a process-wide semaphore that scales with the number of API keys.
+4. If the merged notes are still too long, they are condensed again (up to three rounds).
+5. The final report is generated from the notes using the mode's main prompt.
 
-| Layer | Technology | Why |
-| --- | --- | --- |
-| Frontend | React 19, TypeScript, Vite | Typed, component-based UI with a fast dev/build loop |
-| Rendering | react-markdown | Safe rendering of the model's markdown output |
-| HTTP | Axios | Request cancellation, timeouts and typed responses |
-| Backend | FastAPI, Python | Async API with automatic validation and OpenAPI docs (`/docs`) |
-| PDF parsing | PyMuPDF | Fast, accurate text extraction |
-| LLM | Groq · Llama 3.3 70B Versatile | Low-latency inference on a strong open model |
-| Hosting | Vercel (frontend), Render (backend) | Free-tier friendly deployment |
+A section that fails is skipped instead of failing the request, as long as at least half
+of the document was processed. If a request exceeds the model's context window, the
+section is split in half and retried.
 
-## Project Structure
+## Reliability
 
-```text
-Steven-Summarizer/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── summarize.py      # POST /summarize — validation & error handling
-│   │   ├── core/
-│   │   │   └── config.py         # Environment-driven settings
-│   │   ├── services/
-│   │   │   ├── groq_service.py   # LLM client wrapper
-│   │   │   ├── pdf_service.py    # PDF text extraction
-│   │   │   └── prompts.py        # Prompt templates per analysis mode
-│   │   └── main.py               # App factory, CORS, health check
-│   ├── .env.example
-│   └── requirements.txt
-├── frontend/
-│   ├── public/                   # Favicon and static assets
-│   ├── src/
-│   │   ├── components/           # Header, UploadZone, ModeSelector, LoadingState, ResultPanel…
-│   │   ├── config/modes.ts       # Analysis mode definitions
-│   │   ├── hooks/                # useSummarize, useServerStatus
-│   │   ├── pages/Home.tsx        # Page composition
-│   │   ├── services/api.ts       # API client
-│   │   └── styles/global.css     # Design tokens, layout, animations
-│   ├── .env.example
-│   └── index.html                # Includes the boot splash
-├── docs/screenshots/
-└── README.md
-```
+The previous implementation made a blocking, synchronous call from an async endpoint.
+One slow request froze the server for every user, and any provider error became a 500.
+[`llm_client.py`](backend/app/services/llm_client.py) replaces it with:
 
-## Getting Started
+- **Async I/O** throughout, with PDF parsing moved to a worker thread.
+- **Key rotation:** `GROQ_API_KEYS` accepts several keys, used round-robin to spread rate limits.
+- **Retries** on timeouts, 429 and 5xx responses, with exponential backoff, jitter and `Retry-After` support.
+- **Model fallback:** if the primary model keeps failing, the request moves to `GROQ_FALLBACK_MODELS`.
+- **Rate limiting** per client IP (`RATE_LIMIT_PER_MINUTE`) to protect the shared API quota.
+- **Structured request logs** with an `X-Request-ID` on every response, and a global handler that returns clean JSON errors.
 
-### Prerequisites
+## Prompt design
 
-- Python 3.11+
-- Node.js 20+
-- A free [Groq API key](https://console.groq.com/keys)
+Prompts live in [`prompts.py`](backend/app/services/prompts.py).
 
-### 1. Backend
+- Instructions go in a **system message**. The document goes in the user message, wrapped in
+  `<document>` tags, and the model is told to treat it as data. This blocks instructions
+  hidden inside a PDF.
+- **Grounding rule:** anything not present in the document is written as "Not stated"
+  instead of being invented.
+- The **resume ATS score uses an explicit rubric** (structure 20, keywords 25, quantified
+  impact 20, experience 20, completeness 15). Each rating must cite evidence, which makes
+  scores consistent between runs.
+- Each mode first **classifies the document** and adapts. Uploading a non-resume in Resume
+  mode returns "Not a Resume" instead of a forced analysis.
+- **Output is validated:** code fences and preambles are stripped, and an empty or malformed
+  report is regenerated once.
+
+## Running locally
+
+Requires Python 3.11+, Node 22 and a [Groq API key](https://console.groq.com/keys).
 
 ```bash
+# Backend
 cd backend
-python -m venv venv
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp .env.example .env                                 # add GROQ_API_KEY
+uvicorn app.main:app --reload                        # http://localhost:8000/docs
 
-# Windows
-venv\Scripts\activate
-# macOS / Linux
-source venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env          # then add your GROQ_API_KEY
-uvicorn app.main:app --reload
+# Frontend
+cd frontend
+npm ci
+cp .env.example .env                                 # VITE_API_URL=http://localhost:8000
+npm run dev                                          # http://localhost:5173
 ```
 
-The API runs at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`.
-
-### 2. Frontend
+To run the backend with Docker instead:
 
 ```bash
-cd frontend
-npm install
-cp .env.example .env          # points the app at http://localhost:8000
-npm run dev
+docker build -t steven-summarizer-api backend
+docker run -p 8000:8000 --env-file backend/.env steven-summarizer-api
 ```
-
-Open `http://localhost:5173`.
 
 ## Configuration
 
-**Backend (`backend/.env`)**
+Backend variables (see [`backend/.env.example`](backend/.env.example)):
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `GROQ_API_KEY` | ✅ | — | Groq API key |
-| `GROQ_MODEL` | | `llama-3.3-70b-versatile` | Model used for analysis |
-| `GROQ_TEMPERATURE` | | `0.3` | Sampling temperature |
-| `MAX_INPUT_CHARS` | | `12000` | Characters of extracted text sent to the model |
-| `MAX_UPLOAD_MB` | | `10` | Maximum upload size |
-| `ALLOWED_ORIGINS` | | localhost + Vercel URL | Comma-separated CORS origins |
-
-**Frontend (`frontend/.env`)**
-
-| Variable | Default | Description |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `VITE_API_URL` | `https://steven-summarizer.onrender.com` | Backend base URL |
+| `GROQ_API_KEY` / `GROQ_API_KEYS` | (required) | One key, or a comma-separated list for rotation |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Primary model |
+| `GROQ_FALLBACK_MODELS` | `llama-3.1-8b-instant` | Models tried in order when the primary fails |
+| `LLM_TIMEOUT_SECONDS` | `45` | Timeout for each request |
+| `LLM_MAX_RETRIES` | `3` | Attempts per model |
+| `SINGLE_PASS_CHARS` | `12000` | Above this size, use sectioned analysis |
+| `CHUNK_CHARS` / `CHUNK_OVERLAP_CHARS` | `8000` / `400` | Section size and overlap |
+| `MAX_CONCURRENCY` | `3` | Concurrent section requests per API key |
+| `MAX_DOCUMENT_CHARS` / `MAX_PAGES` | `120000` / `200` | Upper bounds on processed content |
+| `MAX_UPLOAD_MB` | `10` | Upload size limit |
+| `RATE_LIMIT_PER_MINUTE` | `10` | Analyses per client IP per minute (0 disables) |
+| `ALLOWED_ORIGINS` | localhost, Vercel URL | CORS allow-list |
+| `LOG_LEVEL` | `INFO` | Logging level |
 
-## API Reference
+Frontend: `VITE_API_URL`, the backend base URL.
 
-### `POST /summarize`
+## API
 
-| Field | Type | Description |
+`POST /summarize` (multipart form)
+
+| Field | Type | Notes |
 | --- | --- | --- |
-| `file` | PDF file | Document to analyse (≤ 10 MB) |
-| `mode` | `general` \| `resume` \| `research` | Analysis type (default `general`) |
+| `file` | PDF | Up to 10 MB, must contain selectable text |
+| `mode` | `general` \| `resume` \| `research` | Defaults to `general` |
 
 ```json
-{ "summary": "# Executive Brief\n\n## Overview\n...", "mode": "general" }
+{
+  "summary": "# Resume Analysis\n...",
+  "mode": "resume",
+  "meta": {
+    "pages": 2,
+    "pages_analysed": 2,
+    "sections": 1,
+    "truncated": false,
+    "models": ["llama-3.3-70b-versatile"],
+    "seconds": 4.2
+  }
+}
 ```
 
 | Status | Meaning |
 | --- | --- |
-| `400` | File could not be read as a PDF |
-| `413` | File exceeds the size limit |
-| `415` | Not a PDF |
-| `422` | No extractable text (for example, a scanned PDF) or an invalid mode |
-| `502` | The AI service failed or is not configured |
+| 400 | Unreadable PDF |
+| 413 | File too large |
+| 415 | Not a PDF |
+| 422 | No extractable text (for example a scanned PDF), or invalid mode |
+| 429 | Rate limit exceeded (`Retry-After` header set) |
+| 503 | AI provider unavailable after retries and fallbacks |
 
-### `GET /health`
+`GET /health` is used as the Render health check, and the frontend calls it on load to wake the server.
 
-Returns `{ "status": "ok" }`. The frontend calls it on page load to wake the server early.
+## Testing and CI
 
-## Roadmap
+```bash
+cd backend
+ruff check . && ruff format --check .
+pytest -q
+```
 
-- [ ] OCR support for scanned PDFs
-- [ ] Export reports as PDF
-- [ ] Multi-document comparison
-- [ ] Streaming responses for faster first output
-- [ ] Chunked summarisation for very long documents
+The tests cover chunking, the map-reduce pipeline (concurrency cap, partial failures,
+context-overflow fallback, truncation), the LLM client (key rotation, retries, model
+fallback, context errors), prompt structure and HTTP behaviour. They use a fake LLM
+client, so no API key or network access is needed.
+
+[GitHub Actions](.github/workflows/ci.yml) runs lint, format checks and tests for the
+backend, and lint, format check and production build for the frontend, on every push
+and pull request.
+
+## Deployment
+
+- **Backend:** Render, configured in [`render.yaml`](render.yaml), with `/health` as the health check. Set `GROQ_API_KEY` (or `GROQ_API_KEYS`) and `ALLOWED_ORIGINS` in the dashboard.
+- **Frontend:** Vercel, with security and caching headers in [`frontend/vercel.json`](frontend/vercel.json). Set `VITE_API_URL`.
+
+The rate limiter is in-memory and assumes a single backend instance. To scale out
+horizontally, move it to Redis.
+
+## Project structure
+
+```text
+backend/
+  app/
+    api/summarize.py        HTTP endpoint and validation
+    core/                   settings, logging middleware, rate limiter
+    services/
+      chunking.py           boundary-aware text splitting
+      llm_client.py         async Groq client: rotation, retries, fallback
+      pdf_service.py        PyMuPDF extraction (threaded)
+      prompts.py            system prompts and message builders
+      summarizer.py         single-pass and map-reduce pipeline
+    main.py                 app setup, middleware, error handling
+  tests/
+  Dockerfile
+frontend/
+  src/
+    components/             UI components (upload, mode selector, loading, result)
+    hooks/                  useSummarize, useServerStatus
+    services/api.ts         typed API client
+    styles/global.css       design tokens, layout, motion
+  vercel.json
+.github/workflows/ci.yml
+render.yaml
+```
 
 ## Author
 
-**Shyam Saha**: Electronics and Communication Engineering
-
-Interested in artificial intelligence, full-stack development, data analytics and intelligent systems.
-
-[GitHub](https://github.com/stevesss01)
+Shyam Saha · Electronics and Communication Engineering · [GitHub](https://github.com/stevesss01)
