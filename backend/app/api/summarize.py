@@ -1,53 +1,71 @@
-from fastapi import APIRouter
-from fastapi import UploadFile
-from fastapi import File
-from fastapi import Form
-from fastapi import HTTPException
+"""Summarisation endpoint."""
 
-from app.services.pdf_service import (
-    extract_text
-)
+import time
+from typing import Annotated
 
-from app.services.groq_service import (
-    generate_summary
-)
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-router = APIRouter()
+from app.core.config import settings
+from app.core.rate_limit import enforce_rate_limit
+from app.services.llm_client import LLMServiceError
+from app.services.pdf_service import PDFExtractionError, extract_text_async
+from app.services.prompts import MAX_CONTEXT_CHARS, AnalysisMode
+from app.services.summarizer import analyse_document
+
+router = APIRouter(tags=["analysis"])
 
 
-@router.post("/summarize")
+@router.post("/summarize", dependencies=[Depends(enforce_rate_limit)])
 async def summarize_pdf(
-    file: UploadFile = File(...),
-    mode: str = Form(...)
-):
+    file: Annotated[UploadFile, File(description="PDF document to analyse")],
+    mode: Annotated[AnalysisMode, Form(description="Type of analysis")] = AnalysisMode.GENERAL,
+    context: Annotated[
+        str | None,
+        Form(
+            max_length=MAX_CONTEXT_CHARS,
+            description="Optional goal: a target role, job description or question",
+        ),
+    ] = None,
+) -> dict:
+    """Extract text from an uploaded PDF and return an AI-generated analysis."""
+    started = time.perf_counter()
+
+    filename = (file.filename or "").lower()
+    if file.content_type != "application/pdf" and not filename.endswith(".pdf"):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Only PDF files are supported.")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > settings.max_upload_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"File is larger than {settings.max_upload_mb} MB.",
+        )
 
     try:
+        extracted = await extract_text_async(pdf_bytes, settings.max_pages)
+    except PDFExtractionError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
-        pdf_bytes = await file.read()
-
-        text = extract_text(
-            pdf_bytes
-        )
-
-        if not text.strip():
-
-            raise HTTPException(
-                status_code=400,
-                detail="No text found in PDF"
-            )
-
-        summary = generate_summary(
-            text,
-            mode
-        )
-
-        return {
-            "summary": summary
-        }
-
-    except Exception as e:
-
+    if not extracted.text.strip():
         raise HTTPException(
-            status_code=500,
-            detail=str(e)
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "No readable text found. Scanned PDFs are not supported yet.",
         )
+
+    try:
+        result = await analyse_document(extracted.text, mode, context)
+    except LLMServiceError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    return {
+        "summary": result.summary,
+        "mode": mode.value,
+        "meta": {
+            "pages": extracted.pages,
+            "pages_analysed": extracted.pages_read,
+            "sections": result.sections,
+            "truncated": result.truncated or extracted.pages_read < extracted.pages,
+            "models": result.models,
+            "seconds": round(time.perf_counter() - started, 1),
+        },
+    }

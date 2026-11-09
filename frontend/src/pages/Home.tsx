@@ -1,382 +1,137 @@
-import { useState, useRef } from "react";
-import { api } from "../services/api";
-import ReactMarkdown from "react-markdown";
+import { useState } from "react";
+import ErrorBanner from "../components/ErrorBanner";
+import Footer from "../components/Footer";
+import Header from "../components/Header";
+import LoadingState from "../components/LoadingState";
+import ModeSelector from "../components/ModeSelector";
+import ResultPanel from "../components/ResultPanel";
 import UploadZone from "../components/UploadZone";
-import AnalysisCard from "../components/AnalysisCard";
-
+import type { AnalysisMode } from "../config/modes";
+import { MAX_CONTEXT_CHARS, MODES } from "../config/modes";
+import { useServerStatus } from "../hooks/useServerStatus";
+import { useSummarize } from "../hooks/useSummarize";
 
 export default function Home() {
+  const serverStatus = useServerStatus();
+  const { state, summary, meta, error, run, cancel, reset } = useSummarize();
 
-  const [file, setFile] =
-    useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<AnalysisMode>("general");
+  const [context, setContext] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const [summary, setSummary] =
-    useState("");
+  const selectedMode = MODES.find((m) => m.id === mode) ?? MODES[0];
+  const visibleError = localError ?? error;
 
-  const [loading, setLoading] =
-    useState(false);
-
-  const [mode, setMode] =
-    useState("general");
-
-    const resultRef =
-  useRef<HTMLDivElement>(null);
-
-  const resetAnalysis = () => {
-
-    setFile(null);
-
-    setSummary("");
-
-    setMode("general");
-
+  const handleAnalyse = () => {
+    if (!file) {
+      setLocalError("Please upload a PDF first.");
+      return;
+    }
+    setLocalError(null);
+    run(file, mode, context);
   };
 
-  const generateSummary =
-    async () => {
-
-      if (!file) {
-
-        alert(
-          "Please upload a PDF"
-        );
-
-        return;
-      }
-
-      setLoading(true);
-
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        file
-      );
-
-      formData.append(
-        "mode",
-        mode
-      );
-
-      try {
-
-        const res =
-          await api.post(
-            "/summarize",
-            formData,
-            {
-              headers: {
-                "Content-Type":
-                  "multipart/form-data"
-              }
-            }
-          );
-
-        setSummary(
-  res.data.summary
-);
-
-setTimeout(() => {
-
-  resultRef.current
-    ?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
-
-}, 200);
-
-      } catch (err) {
-
-        console.error(err);
-
-        alert(
-          "Failed to summarize"
-        );
-
-      } finally {
-
-        setLoading(false);
-
-      }
-    };
-
-  const downloadSummary =
-    () => {
-
-      const blob =
-        new Blob(
-          [summary],
-          {
-            type:
-              "text/plain"
-          }
-        );
-
-      const url =
-        URL.createObjectURL(
-          blob
-        );
-
-      const a =
-        document.createElement(
-          "a"
-        );
-
-      a.href = url;
-
-      a.download =
-        "Steven-Analysis.txt";
-
-      a.click();
-
-      URL.revokeObjectURL(
-        url
-      );
-    };
+  const handleReset = () => {
+    reset();
+    setFile(null);
+    setLocalError(null);
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg,#020617,#0f172a)",
-        color: "white",
-        display: "flex",
-        justifyContent:
-          "center",
-        alignItems: "center",
-        padding: "40px"
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1100px",
-          width: "100%",
-          background:
-            "#1e293b",
-          padding: "40px",
-          borderRadius: "20px",
-          boxShadow:
-            "0 0 30px rgba(0,0,0,0.4)"
-        }}
-      >
-        <h1
-          style={{
-            textAlign: "center",
-            fontSize: "48px",
-            marginBottom: "10px"
-          }}
-        >
-          Steven-Summarizer
-        </h1>
+    <div className="page">
+      <Header serverStatus={serverStatus} />
 
-        <p
-          style={{
-            textAlign: "center",
-            color: "#94a3b8",
-            fontSize: "18px"
-          }}
-        >
-          AI-Powered Document Intelligence
-        </p>
+      <main className="container main">
+        <section className="intro">
+          <h1 className="intro__title">Document analysis</h1>
+          <p className="intro__lead">
+            Upload a PDF and choose how it should be read: an executive brief, a resume
+            review or a research paper breakdown.
+          </p>
+        </section>
 
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: "10px",
-            color: "#64748b",
-            marginBottom: "30px"
-          }}
-        >
-          Fast • Accurate • Secure
-        </div>
-
-        <UploadZone
-          file={file}
-          onFileSelect={setFile}
-        />
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(3,1fr)",
-            gap: "20px",
-            marginTop: "30px"
-          }}
-        >
-          <AnalysisCard
-            title="General Summary"
-            icon="📄"
-            selected={
-              mode === "general"
-            }
-            onClick={() =>
-              setMode(
-                "general"
-              )
-            }
-          />
-
-          <AnalysisCard
-            title="Resume Review"
-            icon="📋"
-            selected={
-              mode === "resume"
-            }
-            onClick={() =>
-              setMode(
-                "resume"
-              )
-            }
-          />
-
-          <AnalysisCard
-            title="Research Paper"
-            icon="🔬"
-            selected={
-              mode === "research"
-            }
-            onClick={() =>
-              setMode(
-                "research"
-              )
-            }
-          />
-        </div>
-
-        <div
-          style={{
-            textAlign: "center"
-          }}
-        >
-          <button
-            onClick={
-              generateSummary
-            }
-            disabled={
-              loading
-            }
-            style={{
-              marginTop: "30px",
-              padding:
-                "14px 35px",
-              border: "none",
-              borderRadius:
-                "12px",
-              background:
-                "#2563eb",
-              color: "white",
-              cursor:
-                "pointer",
-              fontSize:
-                "16px",
-              fontWeight:
-                "bold"
-            }}
-          >
-            {loading
-              ? "⏳ Analyzing Document..."
-              : "Generate Analysis"}
-          </button>
-        </div>
-
-        {summary && (
-          <>
-            <div
-              style={{
-                background:
-                  "#14532d",
-                padding: "12px",
-                borderRadius:
-                  "10px",
-                marginTop: "25px",
-                textAlign:
-                  "center"
-              }}
-            >
-              ✅ Analysis Complete
-            </div>
-
-            <div
-              style={{
-                marginTop: "30px",
-                textAlign:
-                  "center"
-              }}
-            >
-              <button
-                onClick={
-                  downloadSummary
-                }
-                style={{
-                  padding:
-                    "12px 24px",
-                  border: "none",
-                  borderRadius:
-                    "10px",
-                  background:
-                    "#22c55e",
-                  color: "white",
-                  cursor:
-                    "pointer"
-                }}
-              >
-                Download Analysis
-              </button>
-
-              <button
-                onClick={
-                  resetAnalysis
-                }
-                style={{
-                  marginLeft:
-                    "15px",
-                  padding:
-                    "12px 24px",
-                  border: "none",
-                  borderRadius:
-                    "10px",
-                  background:
-                    "#475569",
-                  color: "white",
-                  cursor:
-                    "pointer"
-                }}
-              >
-                New Analysis
-              </button>
-            </div>
-
-            <div
-  ref={resultRef}
-  style={{
-    marginTop: "30px",
-                background:
-                  "#0f172a",
-                padding: "30px",
-                borderRadius:
-                  "16px",
-                border:
-                  "1px solid #334155",
-                lineHeight:
-                  "1.8"
-              }}
-            >
-              <h2>
-                Analysis Result
-              </h2>
-
-              <ReactMarkdown>
-                {summary}
-              </ReactMarkdown>
-            </div>
-          </>
+        {state === "loading" && file && (
+          <LoadingState fileName={file.name} onCancel={cancel} />
         )}
-      </div>
+
+        {state === "success" && file && (
+          <ResultPanel
+            summary={summary}
+            meta={meta}
+            mode={selectedMode}
+            fileName={file.name}
+            onReset={handleReset}
+          />
+        )}
+
+        {(state === "idle" || state === "error") && (
+          <section className="panel workspace fade-in-up" aria-label="New analysis">
+            <div className="workspace__step">
+              <h2 className="step-heading">
+                <span className="step-heading__num">1</span> Upload your document
+              </h2>
+              <UploadZone
+                file={file}
+                onFileSelect={(f) => {
+                  setFile(f);
+                  setLocalError(null);
+                }}
+                onError={setLocalError}
+              />
+            </div>
+
+            <div className="workspace__step">
+              <h2 className="step-heading">
+                <span className="step-heading__num">2</span> Choose an analysis
+              </h2>
+              <ModeSelector value={mode} onChange={setMode} />
+            </div>
+
+            <div className="workspace__step">
+              <label className="step-heading" htmlFor="analysis-context">
+                <span className="step-heading__num">3</span> {selectedMode.contextLabel}
+                <span className="optional-tag">Optional</span>
+              </label>
+              <textarea
+                id="analysis-context"
+                className="textarea"
+                rows={3}
+                maxLength={MAX_CONTEXT_CHARS}
+                placeholder={selectedMode.contextPlaceholder}
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+              />
+            </div>
+
+            {visibleError && (
+              <ErrorBanner
+                message={visibleError}
+                onDismiss={() => {
+                  setLocalError(null);
+                  if (state === "error") reset();
+                }}
+              />
+            )}
+
+            <div className="workspace__footer">
+              <p className="workspace__note">
+                Files are processed in memory and never stored.
+              </p>
+              <button
+                type="button"
+                className="btn btn--primary btn--lg"
+                onClick={handleAnalyse}
+                disabled={!file}
+              >
+                Analyse document
+              </button>
+            </div>
+          </section>
+        )}
+      </main>
+
+      <Footer />
     </div>
   );
 }
-
