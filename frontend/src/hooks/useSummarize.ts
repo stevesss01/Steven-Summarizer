@@ -12,7 +12,7 @@ export function useSummarize() {
   const [error, setError] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const run = useCallback(async (file: File, mode: AnalysisMode) => {
+  const run = useCallback(async (file: File, mode: AnalysisMode, context = "") => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -23,7 +23,7 @@ export function useSummarize() {
     setMeta(null);
 
     try {
-      const result = await summarizeDocument(file, mode, controller.signal);
+      const result = await summarizeDocument(file, mode, context, controller.signal);
       setSummary(result.summary);
       setMeta(result.meta ?? null);
       setState("success");

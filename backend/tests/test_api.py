@@ -26,7 +26,7 @@ def make_pdf(text: str) -> bytes:
 
 @pytest.fixture(autouse=True)
 def stub_analysis(monkeypatch):
-    async def fake(text, mode):
+    async def fake(text, mode, context=None):
         return AnalysisResult(summary=f"# Report\n\n{mode.value}", models=["stub"])
 
     monkeypatch.setattr(summarize_module, "analyse_document", fake)
@@ -69,3 +69,27 @@ def test_rejects_pdf_without_text():
 
 def test_rejects_unknown_mode():
     assert post(make_pdf("text"), mode="poetry").status_code == 422
+
+
+def test_context_is_accepted():
+    res = post(make_pdf("Senior backend engineer resume"), name="ctx.pdf", mode="resume")
+    assert res.status_code == 200
+
+
+def test_export_pdf():
+    res = client.post(
+        "/export/pdf",
+        json={
+            "markdown": "# Report\n\n## Key Points\n- one",
+            "title": "Resume Review",
+            "source_name": "My CV.pdf",
+        },
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content.startswith(b"%PDF")
+    assert 'filename="my-cv-resume-review.pdf"' in res.headers["content-disposition"]
+
+
+def test_export_rejects_empty_report():
+    assert client.post("/export/pdf", json={"markdown": ""}).status_code == 422

@@ -7,7 +7,7 @@ import ModeSelector from "../components/ModeSelector";
 import ResultPanel from "../components/ResultPanel";
 import UploadZone from "../components/UploadZone";
 import type { AnalysisMode } from "../config/modes";
-import { MODES } from "../config/modes";
+import { MAX_CONTEXT_CHARS, MODES } from "../config/modes";
 import { useServerStatus } from "../hooks/useServerStatus";
 import { useSummarize } from "../hooks/useSummarize";
 
@@ -17,6 +17,7 @@ export default function Home() {
 
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<AnalysisMode>("general");
+  const [context, setContext] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const selectedMode = MODES.find((m) => m.id === mode) ?? MODES[0];
@@ -28,7 +29,7 @@ export default function Home() {
       return;
     }
     setLocalError(null);
-    run(file, mode);
+    run(file, mode, context);
   };
 
   const handleReset = () => {
@@ -85,6 +86,22 @@ export default function Home() {
                 <span className="step-heading__num">2</span> Choose an analysis
               </h2>
               <ModeSelector value={mode} onChange={setMode} />
+            </div>
+
+            <div className="workspace__step">
+              <label className="step-heading" htmlFor="analysis-context">
+                <span className="step-heading__num">3</span> {selectedMode.contextLabel}
+                <span className="optional-tag">Optional</span>
+              </label>
+              <textarea
+                id="analysis-context"
+                className="textarea"
+                rows={3}
+                maxLength={MAX_CONTEXT_CHARS}
+                placeholder={selectedMode.contextPlaceholder}
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+              />
             </div>
 
             {visibleError && (

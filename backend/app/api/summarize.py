@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.rate_limit import enforce_rate_limit
 from app.services.llm_client import LLMServiceError
 from app.services.pdf_service import PDFExtractionError, extract_text_async
-from app.services.prompts import AnalysisMode
+from app.services.prompts import MAX_CONTEXT_CHARS, AnalysisMode
 from app.services.summarizer import analyse_document
 
 router = APIRouter(tags=["analysis"])
@@ -19,6 +19,13 @@ router = APIRouter(tags=["analysis"])
 async def summarize_pdf(
     file: Annotated[UploadFile, File(description="PDF document to analyse")],
     mode: Annotated[AnalysisMode, Form(description="Type of analysis")] = AnalysisMode.GENERAL,
+    context: Annotated[
+        str | None,
+        Form(
+            max_length=MAX_CONTEXT_CHARS,
+            description="Optional goal: a target role, job description or question",
+        ),
+    ] = None,
 ) -> dict:
     """Extract text from an uploaded PDF and return an AI-generated analysis."""
     started = time.perf_counter()
@@ -46,7 +53,7 @@ async def summarize_pdf(
         )
 
     try:
-        result = await analyse_document(extracted.text, mode)
+        result = await analyse_document(extracted.text, mode, context)
     except LLMServiceError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 

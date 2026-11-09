@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.export import router as export_router
 from app.api.summarize import router as summarize_router
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
@@ -25,10 +26,11 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
-    expose_headers=["X-Request-ID", "Retry-After"],
+    expose_headers=["X-Request-ID", "Retry-After", "Content-Disposition"],
 )
 
 app.include_router(summarize_router)
+app.include_router(export_router)
 
 
 @app.exception_handler(Exception)

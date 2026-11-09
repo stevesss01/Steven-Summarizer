@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ModeOption } from "../config/modes";
 import type { SummaryMeta } from "../services/api";
+import { downloadReportPdf } from "../services/api";
 
 interface ResultPanelProps {
   summary: string;
@@ -20,6 +21,7 @@ export default function ResultPanel({
 }: ResultPanelProps) {
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState(false);
+  const [pdfState, setPdfState] = useState<"idle" | "working" | "error">("idle");
 
   useEffect(() => {
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -35,14 +37,14 @@ export default function ResultPanel({
     }
   };
 
-  const downloadSummary = () => {
-    const blob = new Blob([summary], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${fileName.replace(/\.pdf$/i, "")}-${mode.id}-analysis.md`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const downloadPdf = async () => {
+    setPdfState("working");
+    try {
+      await downloadReportPdf(summary, mode.title, fileName);
+      setPdfState("idle");
+    } catch {
+      setPdfState("error");
+    }
   };
 
   return (
@@ -83,15 +85,29 @@ export default function ResultPanel({
           <button
             type="button"
             className="btn btn--secondary btn--sm"
-            onClick={downloadSummary}
+            onClick={downloadPdf}
+            disabled={pdfState === "working"}
+            aria-busy={pdfState === "working"}
           >
-            Download
+            {pdfState === "working" ? (
+              <>
+                <span className="btn-spinner" aria-hidden="true" /> Preparing PDF
+              </>
+            ) : (
+              "Download PDF"
+            )}
           </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={onReset}>
             New analysis
           </button>
         </div>
       </header>
+
+      {pdfState === "error" && (
+        <p className="result__note result__note--error" role="alert">
+          The PDF could not be generated. Please try again, or use Copy.
+        </p>
+      )}
 
       {meta?.truncated && (
         <p className="result__note">

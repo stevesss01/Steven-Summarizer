@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 MAX_REDUCE_ROUNDS = 3
 SECTION_NOTE_TOKENS = 450
-FINAL_REPORT_TOKENS = 1500
+FINAL_REPORT_TOKENS = 2500
 MIN_REPORT_CHARS = 80
 
 _FENCE = re.compile(r"^```(?:markdown|md)?\s*\n(.*)\n```\s*$", re.DOTALL)
@@ -67,8 +67,9 @@ def _section_semaphore() -> asyncio.Semaphore:
 
 
 class Summarizer:
-    def __init__(self, client: LLMClient) -> None:
+    def __init__(self, client: LLMClient, context: str | None = None) -> None:
         self._client = client
+        self._context = (context or "").strip() or None
 
     async def analyse(self, text: str, mode: AnalysisMode) -> AnalysisResult:
         text = text.strip()
@@ -87,7 +88,7 @@ class Summarizer:
     async def _final_report(
         self, mode: AnalysisMode, text: str, *, from_notes: bool
     ) -> tuple[str, str]:
-        messages = build_messages(mode, text, from_notes=from_notes)
+        messages = build_messages(mode, text, context=self._context, from_notes=from_notes)
         completion = await self._client.complete(messages, max_tokens=FINAL_REPORT_TOKENS)
         report = clean_report(completion.text)
 
@@ -128,7 +129,8 @@ class Summarizer:
 
         async def notes_for(text: str, index: int, max_tokens: int) -> str:
             completion = await self._client.complete(
-                build_section_messages(mode, text, index, total), max_tokens=max_tokens
+                build_section_messages(mode, text, index, total, context=self._context),
+                max_tokens=max_tokens,
             )
             models.add(completion.model)
             return completion.text
@@ -167,5 +169,7 @@ def _join_notes(notes: list[str]) -> str:
     return "\n\n".join(f"### Part {i}\n{note.strip()}" for i, note in enumerate(notes, 1))
 
 
-async def analyse_document(text: str, mode: AnalysisMode) -> AnalysisResult:
-    return await Summarizer(get_llm_client()).analyse(text, mode)
+async def analyse_document(
+    text: str, mode: AnalysisMode, context: str | None = None
+) -> AnalysisResult:
+    return await Summarizer(get_llm_client(), context).analyse(text, mode)

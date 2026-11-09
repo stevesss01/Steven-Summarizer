@@ -30,11 +30,13 @@ and merged, so file length doesn't make requests fail.
 
 ## Analysis modes
 
-| Mode | Input | Output |
+| Mode | Optional context | Output |
 | --- | --- | --- |
-| General | Reports, contracts, notes, articles | Document type, overview, key takeaways, critical facts, actions, keywords |
-| Resume | CVs and resumes | Rubric-based ATS score, recommendation, strengths, gaps, missing keywords, rated assessment table, top improvements |
-| Research | Papers and technical documents | Problem, approach, contributions, results with numbers, limitations, applications, viva questions |
+| General | A question about the document | Bottom line, direct answer to your question, key facts, deadlines and obligations table, risks and open questions, next steps |
+| Resume | Target role or full job description | Criterion-by-criterion ATS score, recommendation, job match (matched and missing requirements), three weakest bullets rewritten, likely interview questions, top improvements |
+| Research | What you need it for | Plain-language summary, approach and results with numbers, critical assessment, key terms, viva questions with model answers |
+
+Every report can be downloaded as a formatted A4 PDF with a header, page numbers and tables.
 
 ## Architecture
 
@@ -94,6 +96,8 @@ Prompts live in [`prompts.py`](backend/app/services/prompts.py).
 - The **resume ATS score uses an explicit rubric** (structure 20, keywords 25, quantified
   impact 20, experience 20, completeness 15). Each rating must cite evidence, which makes
   scores consistent between runs.
+- **Actionable sections over summaries:** resume bullets are rewritten using placeholders such as `[X%]` instead of invented metrics, and viva questions come with model answers grounded in the paper.
+- **Optional context** (a job description or a question) is passed in a separate `<context>` block and steers both the section notes and the final report.
 - Each mode first **classifies the document** and adapts. Uploading a non-resume in Resume
   mode returns "Not a Resume" instead of a forced analysis.
 - **Output is validated:** code fences and preambles are stripped, and an empty or malformed
@@ -156,6 +160,7 @@ Frontend: `VITE_API_URL`, the backend base URL.
 | --- | --- | --- |
 | `file` | PDF | Up to 10 MB, must contain selectable text |
 | `mode` | `general` \| `resume` \| `research` | Defaults to `general` |
+| `context` | string, optional | Up to 4,000 characters: target role, job description or question |
 
 ```json
 {
@@ -180,6 +185,9 @@ Frontend: `VITE_API_URL`, the backend base URL.
 | 422 | No extractable text (for example a scanned PDF), or invalid mode |
 | 429 | Rate limit exceeded (`Retry-After` header set) |
 | 503 | AI provider unavailable after retries and fallbacks |
+
+`POST /export/pdf` (JSON `{ "markdown", "title", "source_name" }`) returns the report as
+`application/pdf`, rendered server-side with ReportLab.
 
 `GET /health` is used as the Render health check, and the frontend calls it on load to wake the server.
 
@@ -213,12 +221,14 @@ horizontally, move it to Redis.
 ```text
 backend/
   app/
-    api/summarize.py        HTTP endpoint and validation
+    api/summarize.py        analysis endpoint and validation
+    api/export.py           PDF export endpoint
     core/                   settings, logging middleware, rate limiter
     services/
       chunking.py           boundary-aware text splitting
       llm_client.py         async Groq client: rotation, retries, fallback
       pdf_service.py        PyMuPDF extraction (threaded)
+      pdf_export.py         markdown report to A4 PDF (ReportLab)
       prompts.py            system prompts and message builders
       summarizer.py         single-pass and map-reduce pipeline
     main.py                 app setup, middleware, error handling
